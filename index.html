@@ -6,7 +6,7 @@
     <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
     <style>
         body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
-        #map { width: 100%; height: 100vh; background: #f0f0f0; }
+        #map { width: 100%; height: 100vh; border: none; }
         .info-panel {
             position: absolute;
             top: 10px;
@@ -20,13 +20,15 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
         .status { margin-top: 10px; color: #666; font-size: 12px; }
-        .loading { text-align: center; padding: 50px; color: #666; }
     </style>
 </head>
 <body>
-    <div id='map'>
-        <div class="loading">Loading map...</div>
-    </div>
+    <iframe id="map" 
+            src="https://www.google.com/maps/embed/v1/directions?origin=34.0225823,-118.2274002&destination=34.0134287,-118.2296891&mode=driving&avoid=tolls&units=imperial&region=US&key=AIzaSyDDdD8BAz34j_0zv-G3qJKTP5sKQn7PQ1w"
+            frameborder="0" 
+            allowfullscreen>
+    </iframe>
+    
     <div class='info-panel'>
         <strong>Route: E 12th St → S Santa Fe Ave</strong><br>
         Distance: 0.9 miles<br>
@@ -35,143 +37,56 @@
     </div>
 
     <script>
-        // Simple fallback to Google Maps if libraries fail
-        function loadGoogleMapsFallback() {
-            document.getElementById('map').innerHTML = `
-                <iframe width="100%" height="100%" frameborder="0" style="border:0"
-                src="https://www.google.com/maps/embed/v1/directions?origin=34.0225823,-118.2274002&destination=34.0134287,-118.2296891&mode=driving&key=AIzaSyDDdD8BAz34j_0zv-G3qJKTP5sKQn7PQ1w">
-                </iframe>
-            `;
-            document.getElementById('location-status').innerHTML = 'Using Google Maps fallback';
-            
-            // Still try to get user location
+        // Simple location tracking that works in WebView
+        function updateLocation() {
             if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(
+                navigator.geolocation.getCurrentPosition(
                     function(position) {
                         var lat = position.coords.latitude;
                         var lng = position.coords.longitude;
-                        document.getElementById('location-status').innerHTML = 'Your location: ' + lat.toFixed(4) + ', ' + lng.toFixed(4);
+                        document.getElementById('location-status').innerHTML = 
+                            'Your location: ' + lat.toFixed(4) + ', ' + lng.toFixed(4);
                     },
                     function(error) {
-                        document.getElementById('location-status').innerHTML = 'Location unavailable';
+                        var errorMsg = '';
+                        switch(error.code) {
+                            case error.PERMISSION_DENIED:
+                                errorMsg = 'Location access denied';
+                                break;
+                            case error.POSITION_UNAVAILABLE:
+                                errorMsg = 'Location unavailable';
+                                break;
+                            case error.TIMEOUT:
+                                errorMsg = 'Location timeout';
+                                break;
+                            default:
+                                errorMsg = 'Location error';
+                                break;
+                        }
+                        document.getElementById('location-status').innerHTML = errorMsg;
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 30000
                     }
                 );
+            } else {
+                document.getElementById('location-status').innerHTML = 'Geolocation not supported in WebView';
             }
         }
 
-        // Try to load Leaflet dynamically
-        function loadLeaflet() {
-            // Load CSS
-            var cssLink = document.createElement('link');
-            cssLink.rel = 'stylesheet';
-            cssLink.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-            document.head.appendChild(cssLink);
+        // Update location every 10 seconds
+        updateLocation();
+        setInterval(updateLocation, 10000);
 
-            // Load JavaScript
-            var script = document.createElement('script');
-            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-            script.onload = function() {
-                if (typeof L !== 'undefined') {
-                    initLeafletMap();
-                } else {
-                    loadGoogleMapsFallback();
-                }
-            };
-            script.onerror = function() {
-                loadGoogleMapsFallback();
-            };
-            document.head.appendChild(script);
-        }
-
-        function initLeafletMap() {
-            try {
-                // Clear loading message
-                document.getElementById('map').innerHTML = '';
-                
-                // Initialize the map
-                var map = L.map('map').setView([34.0177, -118.2289], 14);
-
-                // Add OpenStreetMap tiles
-                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                    attribution: '© OpenStreetMap contributors',
-                    maxZoom: 19
-                }).addTo(map);
-
-                // Route coordinates
-                var routeCoordinates = [
-                    [34.0225823, -118.2274002],
-                    [34.0227186, -118.2301251],
-                    [34.0200000, -118.2302000],
-                    [34.0180000, -118.2302600],
-                    [34.0160000, -118.2303000],
-                    [34.0140000, -118.2303400],
-                    [34.0128273, -118.2303307],
-                    [34.0128329, -118.2296805],
-                    [34.0134287, -118.2296891]
-                ];
-
-                // Add route line
-                var routeLine = L.polyline(routeCoordinates, {
-                    color: '#1E90FF',
-                    weight: 6,
-                    opacity: 0.8
-                }).addTo(map);
-
-                // Add start marker (green)
-                L.marker([34.0225823, -118.2274002])
-                    .addTo(map)
-                    .bindPopup('<strong>Start</strong><br>2480 E 12th St, Los Angeles');
-
-                // Add end marker (red)  
-                L.marker([34.0134287, -118.2296891])
-                    .addTo(map)
-                    .bindPopup('<strong>End</strong><br>2626 S Santa Fe Ave, Vernon');
-
-                // User location tracking
-                var userMarker = null;
-                
-                if (navigator.geolocation) {
-                    navigator.geolocation.watchPosition(
-                        function(position) {
-                            var lat = position.coords.latitude;
-                            var lng = position.coords.longitude;
-                            
-                            if (userMarker) {
-                                map.removeLayer(userMarker);
-                            }
-                            
-                            userMarker = L.marker([lat, lng])
-                                .addTo(map)
-                                .bindPopup('<strong>Your Location</strong><br>Lat: ' + lat.toFixed(4) + '<br>Lng: ' + lng.toFixed(4));
-                            
-                            document.getElementById('location-status').innerHTML = 'Your location: ' + lat.toFixed(4) + ', ' + lng.toFixed(4);
-                        },
-                        function(error) {
-                            document.getElementById('location-status').innerHTML = 'Location unavailable';
-                        },
-                        {
-                            enableHighAccuracy: true,
-                            timeout: 20000,
-                            maximumAge: 1000
-                        }
-                    );
-                } else {
-                    document.getElementById('location-status').innerHTML = 'Geolocation not supported';
-                }
-
-                // Fit map to show route
-                map.fitBounds(routeLine.getBounds(), {padding: [20, 20]});
-
-            } catch (error) {
-                console.error('Leaflet error:', error);
-                loadGoogleMapsFallback();
+        // Fallback: Show basic info even if location fails
+        setTimeout(function() {
+            var statusEl = document.getElementById('location-status');
+            if (statusEl.innerHTML === 'Getting location...') {
+                statusEl.innerHTML = 'Location tracking unavailable in WebView';
             }
-        }
-
-        // Start loading when page loads
-        window.addEventListener('load', function() {
-            setTimeout(loadLeaflet, 500); // Small delay to ensure page is ready
-        });
+        }, 5000);
     </script>
 </body>
 </html>
