@@ -37,8 +37,7 @@
         <strong>Route: E 12th St → S Santa Fe Ave</strong><br>
         Distance: <span id="distance">Calculating...</span><br>
         Duration: <span id="duration">Calculating...</span><br>
-        <div class="status" id="location-status">Click button to get location</div>
-        <button class="button" onclick="locateUser()">Get My Location</button>
+        <div class="status" id="location-status">Waiting for location from app...</div>
         <button class="button" onclick="showRoute()">Show Route</button>
     </div>
 
@@ -88,70 +87,54 @@
                 }
             });
 
+            // Check for location in URL parameters
+            checkURLForLocation();
+
+            // Listen for location updates from Draftbit
+            window.addEventListener('message', function(event) {
+                if (event.data && event.data.type === 'location') {
+                    updateUserLocation(event.data.lat, event.data.lng);
+                }
+            });
+
             // Automatically show route on load
             showRoute();
         }
 
-        function locateUser() {
-            document.getElementById('location-status').innerHTML = 'Getting location...';
+        function checkURLForLocation() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const lat = urlParams.get('lat');
+            const lng = urlParams.get('lng');
             
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const userPos = {
-                            lat: position.coords.latitude,
-                            lng: position.coords.longitude,
-                        };
-
-                        // Remove previous user marker
-                        if (userMarker) {
-                            userMarker.setMap(null);
-                        }
-
-                        // Add user marker
-                        userMarker = new google.maps.Marker({
-                            position: userPos,
-                            map: map,
-                            title: "Your Location",
-                            icon: {
-                                url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
-                            }
-                        });
-
-                        // Update status
-                        document.getElementById('location-status').innerHTML = 
-                            `Your location: ${userPos.lat.toFixed(4)}, ${userPos.lng.toFixed(4)}`;
-
-                        // Center map on user
-                        map.setCenter(userPos);
-                    },
-                    (error) => {
-                        let errorMsg = '';
-                        switch(error.code) {
-                            case error.PERMISSION_DENIED:
-                                errorMsg = 'Location access denied';
-                                break;
-                            case error.POSITION_UNAVAILABLE:
-                                errorMsg = 'Location unavailable';
-                                break;
-                            case error.TIMEOUT:
-                                errorMsg = 'Location timeout';
-                                break;
-                            default:
-                                errorMsg = 'Location error';
-                                break;
-                        }
-                        document.getElementById('location-status').innerHTML = errorMsg;
-                    },
-                    {
-                        enableHighAccuracy: true,
-                        timeout: 10000,
-                        maximumAge: 300000
-                    }
-                );
-            } else {
-                document.getElementById('location-status').innerHTML = 'Geolocation not supported';
+            if (lat && lng) {
+                updateUserLocation(parseFloat(lat), parseFloat(lng));
             }
+        }
+
+        function updateUserLocation(lat, lng) {
+            const userPos = { lat: lat, lng: lng };
+
+            // Remove previous user marker
+            if (userMarker) {
+                userMarker.setMap(null);
+            }
+
+            // Add user marker
+            userMarker = new google.maps.Marker({
+                position: userPos,
+                map: map,
+                title: "Your Location",
+                icon: {
+                    url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png"
+                }
+            });
+
+            // Update status
+            document.getElementById('location-status').innerHTML = 
+                `Your location: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+
+            // Optionally center map on user (comment out if you don't want this)
+            // map.setCenter(userPos);
         }
 
         function showRoute() {
@@ -182,27 +165,10 @@
             });
         }
 
-        // Auto-locate user every 30 seconds
-        setInterval(() => {
-            if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(
-                    (position) => {
-                        const userPos = {
-                            lat: position.coords.latitude,
-                            lng: position.coords.longitude,
-                        };
-
-                        if (userMarker) {
-                            userMarker.setPosition(userPos);
-                            document.getElementById('location-status').innerHTML = 
-                                `Your location: ${userPos.lat.toFixed(4)}, ${userPos.lng.toFixed(4)}`;
-                        }
-                    },
-                    () => {}, // Ignore errors for auto-updates
-                    { enableHighAccuracy: true, timeout: 5000, maximumAge: 30000 }
-                );
-            }
-        }, 30000);
+        // Global function to update location (can be called from outside)
+        window.updateLocation = function(lat, lng) {
+            updateUserLocation(lat, lng);
+        };
     </script>
 
     <!-- Load Google Maps JavaScript API -->
