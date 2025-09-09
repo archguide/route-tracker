@@ -37,7 +37,7 @@
         <strong>Route: E 12th St → S Santa Fe Ave</strong><br>
         Distance: <span id="distance">Calculating...</span><br>
         Duration: <span id="duration">Calculating...</span><br>
-        <div class="status" id="location-status">Waiting for location from app...</div>
+        <div class="status" id="location-status">Looking for location data...</div>
         <button class="button" onclick="showRoute()">Show Route</button>
     </div>
 
@@ -46,6 +46,7 @@
         let directionsService;
         let directionsRenderer;
         let userMarker;
+        let locationCheckInterval;
 
         // Route coordinates
         const startPoint = { lat: 34.0225823, lng: -118.2274002 };
@@ -90,15 +91,76 @@
             // Check for location in URL parameters
             checkURLForLocation();
 
-            // Listen for location updates from Draftbit
+            // Listen for postMessage from Draftbit
             window.addEventListener('message', function(event) {
                 if (event.data && event.data.type === 'location') {
                     updateUserLocation(event.data.lat, event.data.lng);
                 }
             });
 
+            // Check for Draftbit variables periodically
+            startLocationMonitoring();
+
             // Automatically show route on load
             showRoute();
+        }
+
+        function startLocationMonitoring() {
+            // Check every 2 seconds for location data from Draftbit
+            locationCheckInterval = setInterval(() => {
+                checkForDraftbitLocation();
+            }, 2000);
+        }
+
+        function checkForDraftbitLocation() {
+            // Method 1: Check if parent window has location data
+            try {
+                if (window.parent && window.parent !== window) {
+                    // Try to access parent's location data
+                    if (window.parent.userLocation && 
+                        window.parent.userLocation.coords &&
+                        window.parent.userLocation.coords.latitude) {
+                        
+                        const lat = window.parent.userLocation.coords.latitude;
+                        const lng = window.parent.userLocation.coords.longitude;
+                        updateUserLocation(lat, lng);
+                        clearInterval(locationCheckInterval);
+                        return;
+                    }
+                }
+            } catch (e) {
+                // Cross-origin access blocked, that's normal
+            }
+
+            // Method 2: Check localStorage for location data
+            try {
+                const storedLocation = localStorage.getItem('draftbitUserLocation');
+                if (storedLocation) {
+                    const locationData = JSON.parse(storedLocation);
+                    if (locationData.lat && locationData.lng) {
+                        updateUserLocation(locationData.lat, locationData.lng);
+                        clearInterval(locationCheckInterval);
+                        return;
+                    }
+                }
+            } catch (e) {
+                // localStorage not available
+            }
+
+            // Method 3: Check global variables
+            if (window.draftbitLat && window.draftbitLng) {
+                updateUserLocation(window.draftbitLat, window.draftbitLng);
+                clearInterval(locationCheckInterval);
+                return;
+            }
+
+            // Method 4: Check for coordinates in document title or meta tags
+            const titleMatch = document.title.match(/lat:([\d.-]+),lng:([\d.-]+)/);
+            if (titleMatch) {
+                updateUserLocation(parseFloat(titleMatch[1]), parseFloat(titleMatch[2]));
+                clearInterval(locationCheckInterval);
+                return;
+            }
         }
 
         function checkURLForLocation() {
@@ -108,6 +170,7 @@
             
             if (lat && lng) {
                 updateUserLocation(parseFloat(lat), parseFloat(lng));
+                clearInterval(locationCheckInterval);
             }
         }
 
@@ -133,8 +196,7 @@
             document.getElementById('location-status').innerHTML = 
                 `Your location: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
 
-            // Optionally center map on user (comment out if you don't want this)
-            // map.setCenter(userPos);
+            console.log('Location updated:', lat, lng);
         }
 
         function showRoute() {
@@ -165,8 +227,15 @@
             });
         }
 
-        // Global function to update location (can be called from outside)
+        // Global functions that can be called from outside
         window.updateLocation = function(lat, lng) {
+            updateUserLocation(lat, lng);
+        };
+
+        // Function to set location via global variables
+        window.setDraftbitLocation = function(lat, lng) {
+            window.draftbitLat = lat;
+            window.draftbitLng = lng;
             updateUserLocation(lat, lng);
         };
     </script>
