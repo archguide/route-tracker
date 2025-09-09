@@ -4,8 +4,8 @@
     <meta charset='utf-8' />
     <title>Route Tracker</title>
     <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
-    <script src='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.js'></script>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v3.0.1/mapbox-gl.css' rel='stylesheet' />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
         body { margin: 0; padding: 0; }
         #map { position: absolute; top: 0; bottom: 0; width: 100%; }
@@ -19,7 +19,8 @@
             font-family: Arial, sans-serif;
             font-size: 12px;
             max-width: 200px;
-            z-index: 1;
+            z-index: 1000;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
         }
     </style>
 </head>
@@ -33,124 +34,100 @@
     </div>
 
     <script>
-        // Wait for page to load completely
-        window.addEventListener('load', function() {
-            // Check if mapboxgl loaded
-            if (typeof mapboxgl === 'undefined') {
-                document.getElementById('location-status').innerHTML = 'MapBox failed to load';
-                return;
-            }
+        // Initialize the map
+        var map = L.map('map').setView([34.0177, -118.2289], 14);
 
-            mapboxgl.accessToken = 'pk.eyJ1IjoibWFwYm94IiwiYSI6ImNpejY4NXVycTA2emYycXBndHRqcmZ3N3gifQ.rJcFIG214AriISLbB6B5aw';
-            
-            // Your route coordinates
-            const routeCoordinates = [
-                [-118.2274002, 34.0225823], // Start: E 12th St
-                [-118.2301251, 34.0227186],
-                [-118.2302000, 34.0200000],
-                [-118.2302600, 34.0180000],
-                [-118.2303000, 34.0160000],
-                [-118.2303400, 34.0140000],
-                [-118.2303307, 34.0128273],
-                [-118.2296805, 34.0128329],
-                [-118.2296891, 34.0134287]  // End: S Santa Fe Ave
-            ];
+        // Add OpenStreetMap tiles (no API key needed)
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
 
-            try {
-                const map = new mapboxgl.Map({
-                    container: 'map',
-                    style: 'mapbox://styles/mapbox/streets-v12',
-                    center: [-118.2289, 34.0177],
-                    zoom: 14
-                });
+        // Route coordinates [lat, lng] format for Leaflet
+        var routeCoordinates = [
+            [34.0225823, -118.2274002], // Start: E 12th St
+            [34.0227186, -118.2301251],
+            [34.0200000, -118.2302000],
+            [34.0180000, -118.2302600],
+            [34.0160000, -118.2303000],
+            [34.0140000, -118.2303400],
+            [34.0128273, -118.2303307],
+            [34.0128329, -118.2296805],
+            [34.0134287, -118.2296891]  // End: S Santa Fe Ave
+        ];
 
-                map.on('load', () => {
-                    // Add route line
-                    map.addSource('route', {
-                        'type': 'geojson',
-                        'data': {
-                            'type': 'Feature',
-                            'properties': {},
-                            'geometry': {
-                                'type': 'LineString',
-                                'coordinates': routeCoordinates
-                            }
-                        }
-                    });
+        // Add route line
+        var routeLine = L.polyline(routeCoordinates, {
+            color: '#1E90FF',
+            weight: 6,
+            opacity: 0.8
+        }).addTo(map);
 
-                    map.addLayer({
-                        'id': 'route',
-                        'type': 'line',
-                        'source': 'route',
-                        'layout': {
-                            'line-join': 'round',
-                            'line-cap': 'round'
-                        },
-                        'paint': {
-                            'line-color': '#1E90FF',
-                            'line-width': 6
-                        }
-                    });
-
-                    // Add start marker
-                    new mapboxgl.Marker({ color: '#00FF00' })
-                        .setLngLat([-118.2274002, 34.0225823])
-                        .setPopup(new mapboxgl.Popup().setHTML('<strong>Start</strong><br>2480 E 12th St, Los Angeles'))
-                        .addTo(map);
-
-                    // Add end marker
-                    new mapboxgl.Marker({ color: '#FF0000' })
-                        .setLngLat([-118.2296891, 34.0134287])
-                        .setPopup(new mapboxgl.Popup().setHTML('<strong>End</strong><br>2626 S Santa Fe Ave, Vernon'))
-                        .addTo(map);
-
-                    // User location tracking
-                    let userMarker = null;
-                    
-                    if (navigator.geolocation) {
-                        navigator.geolocation.watchPosition(
-                            (position) => {
-                                const { longitude, latitude } = position.coords;
-                                
-                                // Remove previous user marker
-                                if (userMarker) {
-                                    userMarker.remove();
-                                }
-                                
-                                // Add new user marker
-                                userMarker = new mapboxgl.Marker({ 
-                                    color: '#004AAD',
-                                    scale: 0.8
-                                })
-                                .setLngLat([longitude, latitude])
-                                .setPopup(new mapboxgl.Popup().setHTML('<strong>Your Location</strong>'))
-                                .addTo(map);
-                                
-                                // Update status
-                                document.getElementById('location-status').innerHTML = `Your location: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-                            },
-                            (error) => {
-                                document.getElementById('location-status').innerHTML = 'Location unavailable';
-                            },
-                            {
-                                enableHighAccuracy: true,
-                                timeout: 20000,
-                                maximumAge: 1000
-                            }
-                        );
-                    } else {
-                        document.getElementById('location-status').innerHTML = 'Geolocation not supported';
-                    }
-                });
-
-                map.on('error', (e) => {
-                    document.getElementById('location-status').innerHTML = 'Map error: ' + e.error.message;
-                });
-
-            } catch (error) {
-                document.getElementById('location-status').innerHTML = 'Error: ' + error.message;
-            }
+        // Create custom icons
+        var startIcon = L.icon({
+            iconUrl: 'data:image/svg+xml;base64,' + btoa('<svg width="25" height="25" xmlns="http://www.w3.org/2000/svg"><circle cx="12.5" cy="12.5" r="10" fill="#00FF00" stroke="#fff" stroke-width="3"/><text x="12.5" y="17" text-anchor="middle" fill="white" font-size="12" font-weight="bold">S</text></svg>'),
+            iconSize: [25, 25],
+            iconAnchor: [12, 12]
         });
+
+        var endIcon = L.icon({
+            iconUrl: 'data:image/svg+xml;base64,' + btoa('<svg width="25" height="25" xmlns="http://www.w3.org/2000/svg"><circle cx="12.5" cy="12.5" r="10" fill="#FF0000" stroke="#fff" stroke-width="3"/><text x="12.5" y="17" text-anchor="middle" fill="white" font-size="12" font-weight="bold">E</text></svg>'),
+            iconSize: [25, 25],
+            iconAnchor: [12, 12]
+        });
+
+        var userIcon = L.icon({
+            iconUrl: 'data:image/svg+xml;base64,' + btoa('<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="#004AAD" stroke="#fff" stroke-width="3"/></svg>'),
+            iconSize: [20, 20],
+            iconAnchor: [10, 10]
+        });
+
+        // Add start marker
+        var startMarker = L.marker([34.0225823, -118.2274002], {icon: startIcon})
+            .addTo(map)
+            .bindPopup('<strong>Start</strong><br>2480 E 12th St, Los Angeles');
+
+        // Add end marker
+        var endMarker = L.marker([34.0134287, -118.2296891], {icon: endIcon})
+            .addTo(map)
+            .bindPopup('<strong>End</strong><br>2626 S Santa Fe Ave, Vernon');
+
+        // User location tracking
+        var userMarker = null;
+        
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                function(position) {
+                    var lat = position.coords.latitude;
+                    var lng = position.coords.longitude;
+                    
+                    // Remove previous user marker
+                    if (userMarker) {
+                        map.removeLayer(userMarker);
+                    }
+                    
+                    // Add new user marker
+                    userMarker = L.marker([lat, lng], {icon: userIcon})
+                        .addTo(map)
+                        .bindPopup('<strong>Your Location</strong><br>Lat: ' + lat.toFixed(4) + '<br>Lng: ' + lng.toFixed(4));
+                    
+                    // Update status
+                    document.getElementById('location-status').innerHTML = 'Your location: ' + lat.toFixed(4) + ', ' + lng.toFixed(4);
+                },
+                function(error) {
+                    document.getElementById('location-status').innerHTML = 'Location unavailable: ' + error.message;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 20000,
+                    maximumAge: 1000
+                }
+            );
+        } else {
+            document.getElementById('location-status').innerHTML = 'Geolocation not supported';
+        }
+
+        // Fit map to show the entire route
+        map.fitBounds(routeLine.getBounds(), {padding: [20, 20]});
     </script>
 </body>
 </html>
