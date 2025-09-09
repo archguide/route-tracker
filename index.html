@@ -4,130 +4,174 @@
     <meta charset='utf-8' />
     <title>Route Tracker</title>
     <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <style>
-        body { margin: 0; padding: 0; }
-        #map { position: absolute; top: 0; bottom: 0; width: 100%; }
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { width: 100%; height: 100vh; background: #f0f0f0; }
         .info-panel {
             position: absolute;
             top: 10px;
             left: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
-            border-radius: 5px;
-            font-family: Arial, sans-serif;
-            font-size: 12px;
-            max-width: 200px;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            max-width: 250px;
             z-index: 1000;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }
+        .status { margin-top: 10px; color: #666; font-size: 12px; }
+        .loading { text-align: center; padding: 50px; color: #666; }
     </style>
 </head>
 <body>
-    <div id='map'></div>
+    <div id='map'>
+        <div class="loading">Loading map...</div>
+    </div>
     <div class='info-panel'>
         <strong>Route: E 12th St → S Santa Fe Ave</strong><br>
         Distance: 0.9 miles<br>
         Duration: ~4 minutes<br>
-        <span id='location-status'>Getting location...</span>
+        <div class="status" id='location-status'>Getting location...</div>
     </div>
 
     <script>
-        // Initialize the map
-        var map = L.map('map').setView([34.0177, -118.2289], 14);
-
-        // Add OpenStreetMap tiles (no API key needed)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-        }).addTo(map);
-
-        // Route coordinates [lat, lng] format for Leaflet
-        var routeCoordinates = [
-            [34.0225823, -118.2274002], // Start: E 12th St
-            [34.0227186, -118.2301251],
-            [34.0200000, -118.2302000],
-            [34.0180000, -118.2302600],
-            [34.0160000, -118.2303000],
-            [34.0140000, -118.2303400],
-            [34.0128273, -118.2303307],
-            [34.0128329, -118.2296805],
-            [34.0134287, -118.2296891]  // End: S Santa Fe Ave
-        ];
-
-        // Add route line
-        var routeLine = L.polyline(routeCoordinates, {
-            color: '#1E90FF',
-            weight: 6,
-            opacity: 0.8
-        }).addTo(map);
-
-        // Create custom icons
-        var startIcon = L.icon({
-            iconUrl: 'data:image/svg+xml;base64,' + btoa('<svg width="25" height="25" xmlns="http://www.w3.org/2000/svg"><circle cx="12.5" cy="12.5" r="10" fill="#00FF00" stroke="#fff" stroke-width="3"/><text x="12.5" y="17" text-anchor="middle" fill="white" font-size="12" font-weight="bold">S</text></svg>'),
-            iconSize: [25, 25],
-            iconAnchor: [12, 12]
-        });
-
-        var endIcon = L.icon({
-            iconUrl: 'data:image/svg+xml;base64,' + btoa('<svg width="25" height="25" xmlns="http://www.w3.org/2000/svg"><circle cx="12.5" cy="12.5" r="10" fill="#FF0000" stroke="#fff" stroke-width="3"/><text x="12.5" y="17" text-anchor="middle" fill="white" font-size="12" font-weight="bold">E</text></svg>'),
-            iconSize: [25, 25],
-            iconAnchor: [12, 12]
-        });
-
-        var userIcon = L.icon({
-            iconUrl: 'data:image/svg+xml;base64,' + btoa('<svg width="20" height="20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="#004AAD" stroke="#fff" stroke-width="3"/></svg>'),
-            iconSize: [20, 20],
-            iconAnchor: [10, 10]
-        });
-
-        // Add start marker
-        var startMarker = L.marker([34.0225823, -118.2274002], {icon: startIcon})
-            .addTo(map)
-            .bindPopup('<strong>Start</strong><br>2480 E 12th St, Los Angeles');
-
-        // Add end marker
-        var endMarker = L.marker([34.0134287, -118.2296891], {icon: endIcon})
-            .addTo(map)
-            .bindPopup('<strong>End</strong><br>2626 S Santa Fe Ave, Vernon');
-
-        // User location tracking
-        var userMarker = null;
-        
-        if (navigator.geolocation) {
-            navigator.geolocation.watchPosition(
-                function(position) {
-                    var lat = position.coords.latitude;
-                    var lng = position.coords.longitude;
-                    
-                    // Remove previous user marker
-                    if (userMarker) {
-                        map.removeLayer(userMarker);
+        // Simple fallback to Google Maps if libraries fail
+        function loadGoogleMapsFallback() {
+            document.getElementById('map').innerHTML = `
+                <iframe width="100%" height="100%" frameborder="0" style="border:0"
+                src="https://www.google.com/maps/embed/v1/directions?origin=34.0225823,-118.2274002&destination=34.0134287,-118.2296891&mode=driving&key=AIzaSyDDdD8BAz34j_0zv-G3qJKTP5sKQn7PQ1w">
+                </iframe>
+            `;
+            document.getElementById('location-status').innerHTML = 'Using Google Maps fallback';
+            
+            // Still try to get user location
+            if (navigator.geolocation) {
+                navigator.geolocation.watchPosition(
+                    function(position) {
+                        var lat = position.coords.latitude;
+                        var lng = position.coords.longitude;
+                        document.getElementById('location-status').innerHTML = 'Your location: ' + lat.toFixed(4) + ', ' + lng.toFixed(4);
+                    },
+                    function(error) {
+                        document.getElementById('location-status').innerHTML = 'Location unavailable';
                     }
-                    
-                    // Add new user marker
-                    userMarker = L.marker([lat, lng], {icon: userIcon})
-                        .addTo(map)
-                        .bindPopup('<strong>Your Location</strong><br>Lat: ' + lat.toFixed(4) + '<br>Lng: ' + lng.toFixed(4));
-                    
-                    // Update status
-                    document.getElementById('location-status').innerHTML = 'Your location: ' + lat.toFixed(4) + ', ' + lng.toFixed(4);
-                },
-                function(error) {
-                    document.getElementById('location-status').innerHTML = 'Location unavailable: ' + error.message;
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 20000,
-                    maximumAge: 1000
-                }
-            );
-        } else {
-            document.getElementById('location-status').innerHTML = 'Geolocation not supported';
+                );
+            }
         }
 
-        // Fit map to show the entire route
-        map.fitBounds(routeLine.getBounds(), {padding: [20, 20]});
+        // Try to load Leaflet dynamically
+        function loadLeaflet() {
+            // Load CSS
+            var cssLink = document.createElement('link');
+            cssLink.rel = 'stylesheet';
+            cssLink.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+            document.head.appendChild(cssLink);
+
+            // Load JavaScript
+            var script = document.createElement('script');
+            script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+            script.onload = function() {
+                if (typeof L !== 'undefined') {
+                    initLeafletMap();
+                } else {
+                    loadGoogleMapsFallback();
+                }
+            };
+            script.onerror = function() {
+                loadGoogleMapsFallback();
+            };
+            document.head.appendChild(script);
+        }
+
+        function initLeafletMap() {
+            try {
+                // Clear loading message
+                document.getElementById('map').innerHTML = '';
+                
+                // Initialize the map
+                var map = L.map('map').setView([34.0177, -118.2289], 14);
+
+                // Add OpenStreetMap tiles
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(map);
+
+                // Route coordinates
+                var routeCoordinates = [
+                    [34.0225823, -118.2274002],
+                    [34.0227186, -118.2301251],
+                    [34.0200000, -118.2302000],
+                    [34.0180000, -118.2302600],
+                    [34.0160000, -118.2303000],
+                    [34.0140000, -118.2303400],
+                    [34.0128273, -118.2303307],
+                    [34.0128329, -118.2296805],
+                    [34.0134287, -118.2296891]
+                ];
+
+                // Add route line
+                var routeLine = L.polyline(routeCoordinates, {
+                    color: '#1E90FF',
+                    weight: 6,
+                    opacity: 0.8
+                }).addTo(map);
+
+                // Add start marker (green)
+                L.marker([34.0225823, -118.2274002])
+                    .addTo(map)
+                    .bindPopup('<strong>Start</strong><br>2480 E 12th St, Los Angeles');
+
+                // Add end marker (red)  
+                L.marker([34.0134287, -118.2296891])
+                    .addTo(map)
+                    .bindPopup('<strong>End</strong><br>2626 S Santa Fe Ave, Vernon');
+
+                // User location tracking
+                var userMarker = null;
+                
+                if (navigator.geolocation) {
+                    navigator.geolocation.watchPosition(
+                        function(position) {
+                            var lat = position.coords.latitude;
+                            var lng = position.coords.longitude;
+                            
+                            if (userMarker) {
+                                map.removeLayer(userMarker);
+                            }
+                            
+                            userMarker = L.marker([lat, lng])
+                                .addTo(map)
+                                .bindPopup('<strong>Your Location</strong><br>Lat: ' + lat.toFixed(4) + '<br>Lng: ' + lng.toFixed(4));
+                            
+                            document.getElementById('location-status').innerHTML = 'Your location: ' + lat.toFixed(4) + ', ' + lng.toFixed(4);
+                        },
+                        function(error) {
+                            document.getElementById('location-status').innerHTML = 'Location unavailable';
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 20000,
+                            maximumAge: 1000
+                        }
+                    );
+                } else {
+                    document.getElementById('location-status').innerHTML = 'Geolocation not supported';
+                }
+
+                // Fit map to show route
+                map.fitBounds(routeLine.getBounds(), {padding: [20, 20]});
+
+            } catch (error) {
+                console.error('Leaflet error:', error);
+                loadGoogleMapsFallback();
+            }
+        }
+
+        // Start loading when page loads
+        window.addEventListener('load', function() {
+            setTimeout(loadLeaflet, 500); // Small delay to ensure page is ready
+        });
     </script>
 </body>
 </html>
