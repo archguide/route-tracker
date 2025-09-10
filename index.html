@@ -189,6 +189,14 @@
     }
   });
 </script>
+<script>
+  // This lets Draftbit call directly into your map code
+  window.setUserLocation = function(lat, lng) {
+    if (!isNaN(lat) && !isNaN(lng)) {
+      showUserLocation(Number(lat), Number(lng));
+    }
+  };
+</script>
 
     <!-- Load Google Maps API -->
     <script async defer
