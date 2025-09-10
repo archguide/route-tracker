@@ -167,6 +167,12 @@
             });
         }
     </script>
+<script>
+  document.addEventListener('message', (event) => {
+    const { lat, lng } = JSON.parse(event.data);
+    updateDot(lat, lng); // your function that moves the marker
+  });
+</script>
 
     <!-- Load Google Maps API -->
     <script async defer
