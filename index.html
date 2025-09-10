@@ -26,8 +26,10 @@
             padding: 8px 12px;
             border-radius: 4px;
             cursor: pointer;
-            margin-top: 10px;
+            margin: 5px 5px 5px 0;
+            font-size: 12px;
         }
+        .button:hover { background: #0080FF; }
     </style>
 </head>
 <body>
@@ -35,9 +37,10 @@
     
     <div class="info-panel">
         <strong>Route: E 12th St → S Santa Fe Ave</strong><br>
-        Distance: <span id="distance">Calculating...</span><br>
-        Duration: <span id="duration">Calculating...</span><br>
-        <div class="status" id="location-status">Looking for location data...</div>
+        Distance: <span id="distance">0.9 mi</span><br>
+        Duration: <span id="duration">4 mins</span><br>
+        <div class="status" id="location-status">Map loading...</div>
+        <button class="button" onclick="getMyLocation()">Get Location</button>
         <button class="button" onclick="showRoute()">Show Route</button>
     </div>
 
@@ -46,13 +49,14 @@
         let directionsService;
         let directionsRenderer;
         let userMarker;
-        let locationCheckInterval;
 
         // Route coordinates
         const startPoint = { lat: 34.0225823, lng: -118.2274002 };
         const endPoint = { lat: 34.0134287, lng: -118.2296891 };
 
         function initMap() {
+            console.log('Initializing map...');
+            
             // Initialize map
             map = new google.maps.Map(document.getElementById("map"), {
                 zoom: 14,
@@ -68,7 +72,7 @@
             });
             directionsRenderer.setMap(map);
 
-            // Add start marker
+            // Add start marker (green)
             new google.maps.Marker({
                 position: startPoint,
                 map: map,
@@ -78,7 +82,7 @@
                 }
             });
 
-            // Add end marker
+            // Add end marker (red)
             new google.maps.Marker({
                 position: endPoint,
                 map: map,
@@ -88,103 +92,70 @@
                 }
             });
 
-            // Check for location in URL parameters
-            checkURLForLocation();
+            // Update status
+            document.getElementById('location-status').innerHTML = 'Map loaded. Click "Get Location" to find your position.';
 
-            // Listen for postMessage from Draftbit
-            window.addEventListener('message', function(event) {
-                if (event.data && event.data.type === 'location') {
-                    updateUserLocation(event.data.lat, event.data.lng);
-                }
-            });
-
-            // Check for Draftbit variables periodically
-            startLocationMonitoring();
-
-            // Automatically show route on load
+            // Automatically show route
             showRoute();
+
+            console.log('Map initialization complete');
         }
 
-        function startLocationMonitoring() {
-            // Check every 2 seconds for location data from Draftbit
-            locationCheckInterval = setInterval(() => {
-                checkForDraftbitLocation();
-            }, 2000);
-        }
-
-        function checkForDraftbitLocation() {
-            // Method 1: Check if parent window has location data
-            try {
-                if (window.parent && window.parent !== window) {
-                    // Try to access parent's location data
-                    if (window.parent.userLocation && 
-                        window.parent.userLocation.coords &&
-                        window.parent.userLocation.coords.latitude) {
-                        
-                        const lat = window.parent.userLocation.coords.latitude;
-                        const lng = window.parent.userLocation.coords.longitude;
-                        updateUserLocation(lat, lng);
-                        clearInterval(locationCheckInterval);
-                        return;
-                    }
-                }
-            } catch (e) {
-                // Cross-origin access blocked, that's normal
-            }
-
-            // Method 2: Check localStorage for location data
-            try {
-                const storedLocation = localStorage.getItem('draftbitUserLocation');
-                if (storedLocation) {
-                    const locationData = JSON.parse(storedLocation);
-                    if (locationData.lat && locationData.lng) {
-                        updateUserLocation(locationData.lat, locationData.lng);
-                        clearInterval(locationCheckInterval);
-                        return;
-                    }
-                }
-            } catch (e) {
-                // localStorage not available
-            }
-
-            // Method 3: Check global variables
-            if (window.draftbitLat && window.draftbitLng) {
-                updateUserLocation(window.draftbitLat, window.draftbitLng);
-                clearInterval(locationCheckInterval);
-                return;
-            }
-
-            // Method 4: Check for coordinates in document title or meta tags
-            const titleMatch = document.title.match(/lat:([\d.-]+),lng:([\d.-]+)/);
-            if (titleMatch) {
-                updateUserLocation(parseFloat(titleMatch[1]), parseFloat(titleMatch[2]));
-                clearInterval(locationCheckInterval);
-                return;
-            }
-        }
-
-        function checkURLForLocation() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const lat = urlParams.get('lat');
-            const lng = urlParams.get('lng');
+        function getMyLocation() {
+            console.log('Getting location...');
+            document.getElementById('location-status').innerHTML = 'Requesting location...';
             
-            if (lat && lng) {
-                updateUserLocation(parseFloat(lat), parseFloat(lng));
-                clearInterval(locationCheckInterval);
+            if (!navigator.geolocation) {
+                document.getElementById('location-status').innerHTML = 'Geolocation not supported';
+                return;
             }
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    console.log('Location found:', position.coords);
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    showUserLocation(lat, lng);
+                },
+                function(error) {
+                    console.error('Location error:', error);
+                    let msg = 'Location error: ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            msg += 'Permission denied';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            msg += 'Position unavailable';
+                            break;
+                        case error.TIMEOUT:
+                            msg += 'Request timeout';
+                            break;
+                        default:
+                            msg += 'Unknown error';
+                            break;
+                    }
+                    document.getElementById('location-status').innerHTML = msg;
+                },
+                {
+                    enableHighAccuracy: true,
+                    timeout: 10000,
+                    maximumAge: 300000
+                }
+            );
         }
 
-        function updateUserLocation(lat, lng) {
-            const userPos = { lat: lat, lng: lng };
-
+        function showUserLocation(lat, lng) {
+            console.log('Showing user location:', lat, lng);
+            
             // Remove previous user marker
             if (userMarker) {
                 userMarker.setMap(null);
             }
 
-            // Add user marker
+            // Add blue user marker
             userMarker = new google.maps.Marker({
-                position: userPos,
+                position: { lat: lat, lng: lng },
                 map: map,
                 title: "Your Location",
                 icon: {
@@ -194,23 +165,22 @@
 
             // Update status
             document.getElementById('location-status').innerHTML = 
-                `Your location: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-
-            console.log('Location updated:', lat, lng);
+                `Location: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         }
 
         function showRoute() {
+            console.log('Showing route...');
+            
             const request = {
                 origin: startPoint,
                 destination: endPoint,
                 travelMode: google.maps.TravelMode.DRIVING,
                 unitSystem: google.maps.UnitSystem.IMPERIAL,
-                avoidHighways: false,
-                avoidTolls: false,
             };
 
-            directionsService.route(request, (result, status) => {
+            directionsService.route(request, function(result, status) {
                 if (status === "OK") {
+                    console.log('Route loaded successfully');
                     directionsRenderer.setDirections(result);
                     
                     // Update distance and duration
@@ -220,20 +190,34 @@
                     document.getElementById('distance').innerHTML = leg.distance.text;
                     document.getElementById('duration').innerHTML = leg.duration.text;
                 } else {
-                    console.error('Directions request failed due to ' + status);
-                    document.getElementById('distance').innerHTML = 'Error';
-                    document.getElementById('duration').innerHTML = 'Error';
+                    console.error('Route error:', status);
+                    document.getElementById('distance').innerHTML = 'Route error';
+                    document.getElementById('duration').innerHTML = 'Route error';
                 }
             });
         }
 
-        // Global function that can still be called from outside if needed
-        window.updateLocation = function(lat, lng) {
-            updateUserLocation(lat, lng);
-        };
+        // Check URL parameters for location
+        function checkURL() {
+            const params = new URLSearchParams(window.location.search);
+            const lat = params.get('lat');
+            const lng = params.get('lng');
+            
+            if (lat && lng) {
+                console.log('Location from URL:', lat, lng);
+                showUserLocation(parseFloat(lat), parseFloat(lng));
+            }
+        }
+
+        // Check URL when page loads
+        window.addEventListener('load', function() {
+            checkURL();
+        });
     </script>
 
-    <!-- Load Google Maps JavaScript API -->
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDDdD8BAz34j_0zv-G3qJKTP5sKQn7PQ1w&callback=initMap&libraries=geometry" async defer></script>
+    <!-- Load Google Maps API -->
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDDdD8BAz34j_0zv-G3qJKTP5sKQn7PQ1w&callback=initMap">
+    </script>
 </body>
 </html>
