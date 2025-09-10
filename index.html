@@ -227,15 +227,8 @@
             });
         }
 
-        // Global functions that can be called from outside
+        // Global function that can still be called from outside if needed
         window.updateLocation = function(lat, lng) {
-            updateUserLocation(lat, lng);
-        };
-
-        // Function to set location via global variables
-        window.setDraftbitLocation = function(lat, lng) {
-            window.draftbitLat = lat;
-            window.draftbitLng = lng;
             updateUserLocation(lat, lng);
         };
     </script>
