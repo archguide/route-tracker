@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html>
 <head>
     <title>Route Tracker</title>
@@ -39,9 +39,8 @@
         <strong>Route: E 12th St → S Santa Fe Ave</strong><br>
         Distance: <span id="distance">0.9 mi</span><br>
         Duration: <span id="duration">4 mins</span><br>
-        <div class="status" id="location-status">Map loading...</div>
-        <button class="button" onclick="getMyLocation()">Get Location</button>
-        <button class="button" onclick="showRoute()">Show Route</button>
+        <div class="status" id="location-status">Waiting for location from Draftbit...</div>
+        <button class="button" onclick="showRoute()">Refresh Route</button>
     </div>
 
     <script>
@@ -92,8 +91,8 @@
                 }
             });
 
-            // Update status
-            document.getElementById('location-status').innerHTML = 'Map loaded. Click "Get Location" to find your position.';
+            // Check URL for location from Draftbit
+            checkURLForLocation();
 
             // Automatically show route
             showRoute();
@@ -101,48 +100,19 @@
             console.log('Map initialization complete');
         }
 
-        function getMyLocation() {
-            console.log('Getting location...');
-            document.getElementById('location-status').innerHTML = 'Requesting location...';
+        function checkURLForLocation() {
+            const params = new URLSearchParams(window.location.search);
+            const lat = params.get('lat');
+            const lng = params.get('lng');
             
-            if (!navigator.geolocation) {
-                document.getElementById('location-status').innerHTML = 'Geolocation not supported';
-                return;
+            if (lat && lng) {
+                console.log('Location received from Draftbit:', lat, lng);
+                showUserLocation(parseFloat(lat), parseFloat(lng));
+            } else {
+                console.log('No location parameters in URL');
+                document.getElementById('location-status').innerHTML = 
+                    'No location received. Use "Get Location" button in app.';
             }
-
-            navigator.geolocation.getCurrentPosition(
-                function(position) {
-                    console.log('Location found:', position.coords);
-                    const lat = position.coords.latitude;
-                    const lng = position.coords.longitude;
-                    
-                    showUserLocation(lat, lng);
-                },
-                function(error) {
-                    console.error('Location error:', error);
-                    let msg = 'Location error: ';
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            msg += 'Permission denied';
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            msg += 'Position unavailable';
-                            break;
-                        case error.TIMEOUT:
-                            msg += 'Request timeout';
-                            break;
-                        default:
-                            msg += 'Unknown error';
-                            break;
-                    }
-                    document.getElementById('location-status').innerHTML = msg;
-                },
-                {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 300000
-                }
-            );
         }
 
         function showUserLocation(lat, lng) {
@@ -165,7 +135,7 @@
 
             // Update status
             document.getElementById('location-status').innerHTML = 
-                `Location: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+                `✓ Your location: ${lat.toFixed(4)}, ${lng.toFixed(4)}`;
         }
 
         function showRoute() {
@@ -196,23 +166,6 @@
                 }
             });
         }
-
-        // Check URL parameters for location
-        function checkURL() {
-            const params = new URLSearchParams(window.location.search);
-            const lat = params.get('lat');
-            const lng = params.get('lng');
-            
-            if (lat && lng) {
-                console.log('Location from URL:', lat, lng);
-                showUserLocation(parseFloat(lat), parseFloat(lng));
-            }
-        }
-
-        // Check URL when page loads
-        window.addEventListener('load', function() {
-            checkURL();
-        });
     </script>
 
     <!-- Load Google Maps API -->
