@@ -173,6 +173,22 @@
     updateDot(lat, lng); // your function that moves the marker
   });
 </script>
+<div id="map"> … </div>
+<div id="dot"> … </div>
+<script>
+  function updateDot(lat, lng) {
+    // move dot based on lat/lng (your existing logic)
+  }
+
+  document.addEventListener('message', event => {
+    try {
+      const { lat, lng } = JSON.parse(event.data);
+      updateDot(lat, lng);
+    } catch (e) {
+      console.log('Bad message', e);
+    }
+  });
+</script>
 
     <!-- Load Google Maps API -->
     <script async defer
